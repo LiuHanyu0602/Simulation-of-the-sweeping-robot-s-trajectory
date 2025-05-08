@@ -1,0 +1,189 @@
+1. 每次撞墙固定顺时针转110度
+import turtle
+import matplotlib.pyplot as plt
+import math
+import random
+
+# —— 参数设置 ——
+BOUNDARY = 200       # 正方形边界：x,y ∈ [–200, 200]
+STEP = 5             # 每步移动距离
+MAX_COLLISIONS = 150 # 碰撞次数阈值
+
+# 初始化状态
+x, y = 0.0, 0.0
+angle = random.uniform(0, 360)  # 随机初始方向（度）
+collision_count = 0
+
+# 记录轨迹点
+xs, ys = [x], [y]
+
+# —— Turtle 可视化设置 ——
+screen = turtle.Screen()
+screen.setup(600, 600)
+screen.setworldcoordinates(-BOUNDARY-20, -BOUNDARY-20, BOUNDARY+20, BOUNDARY+20)
+
+# 画边界
+border = turtle.Turtle()
+border.hideturtle()
+border.penup()
+border.goto(-BOUNDARY, -BOUNDARY)
+border.pendown()
+for _ in range(4):
+    border.forward(2 * BOUNDARY)
+    border.left(90)
+
+# 机器人画笔
+bot = turtle.Turtle()
+bot.hideturtle()
+bot.penup()
+bot.goto(x, y)
+bot.pendown()
+bot.speed(0)
+
+# —— 运动模拟主循环 ——
+while collision_count < MAX_COLLISIONS:
+    # 1) 计算下一位置
+    rad = math.radians(angle)
+    new_x = x + STEP * math.cos(rad)
+    new_y = y + STEP * math.sin(rad)
+
+    # 2) 检测碰撞并钳制到边界
+    collided = False
+    if not (-BOUNDARY <= new_x <= BOUNDARY):
+        collided = True
+        new_x = max(min(new_x, BOUNDARY), -BOUNDARY)
+    if not (-BOUNDARY <= new_y <= BOUNDARY):
+        collided = True
+        new_y = max(min(new_y, BOUNDARY), -BOUNDARY)
+
+    # 3) 碰撞后固定顺时针转 100°
+    if collided:
+        collision_count += 1
+        angle = (angle - 100) % 360
+
+    # 4) 更新 Turtle 与记录
+    bot.goto(new_x, new_y)
+    xs.append(new_x)
+    ys.append(new_y)
+    x, y = new_x, new_y
+
+# 结束 Turtle 窗口
+turtle.done()
+#print('turtle done')
+# —— Matplotlib 静态展示 ——
+plt.figure(figsize=(6,6))
+plt.plot(xs, ys, linewidth=1)
+plt.xlim(-BOUNDARY, BOUNDARY)
+plt.ylim(-BOUNDARY, BOUNDARY)
+plt.title(f'Robot trajectory with {collision_count} wall collisions FIX')
+plt.xlabel('X position')
+plt.ylabel('Y position')
+plt.grid(True)
+plt.gca().set_aspect('equal', 'box')
+plt.show()
+#print('Matplotlib done')
+
+2. 每次撞墙随机左转右转，通过连续两次撞击之间的时间间隔决定旋转角度
+import turtle
+import matplotlib.pyplot as plt
+import math
+import random
+
+BOUNDARY = 200       # 正方形边界：x,y ∈ [–200, 200]
+STEP = 5             # 每次移动距离
+MAX_COLLISIONS = 150 # 要记录的碰撞次数
+
+# 最大可能距离（对角线）
+MAX_DIST = 200*2**0.5
+
+# 初始化
+x, y = 0.0, 0.0 #起点
+angle = random.uniform(0, 360)  # 随机初始方向（度）
+collision_count = 0 #记录碰撞次数
+
+# 上次碰撞时的位置
+last_coll_x, last_coll_y = x, y
+
+# 记录轨迹
+xs, ys = [x], [y]
+
+# Turtle
+screen = turtle.Screen()
+screen.setup(600, 600)
+screen.setworldcoordinates(-BOUNDARY-20, -BOUNDARY-20, BOUNDARY+20, BOUNDARY+20)
+
+# 1. 画边界
+border = turtle.Turtle()
+border.hideturtle()
+border.penup()
+border.goto(-BOUNDARY, -BOUNDARY)
+border.pendown()
+for _ in range(4):
+    border.forward(2 * BOUNDARY)
+    border.left(90)
+
+# 2. 机器人运动
+bot = turtle.Turtle()
+bot.hideturtle()
+bot.penup()
+bot.goto(x, y)
+bot.pendown()
+bot.speed(0)
+
+# 等价于原Arduino中的map和constrain
+#没法记录时间，只能通过两次撞墙之间的运动距离来map
+def map_and_constrain(val, in_max, out_min, out_max):
+    mapped = (val / in_max) * (out_max - out_min) + out_min
+    return max(min(mapped, out_max), out_min)
+
+# 机器人运动模拟
+while collision_count < MAX_COLLISIONS:
+    # 计算下一位置
+    rad = math.radians(angle)
+    new_x = x + STEP * math.cos(rad)
+    new_y = y + STEP * math.sin(rad)
+
+    # 检测是否碰撞到边界
+    collided = False
+    if not (-BOUNDARY <= new_x <= BOUNDARY):
+        collided = True
+        new_x = max(min(new_x, BOUNDARY), -BOUNDARY)
+    if not (-BOUNDARY <= new_y <= BOUNDARY):
+        collided = True
+        new_y = max(min(new_y, BOUNDARY), -BOUNDARY)
+
+    # 如果发生碰撞
+    if collided:
+        collision_count += 1
+        # 计算此次移动距离（从上次碰撞位置到当前碰撞点）
+        dist = ((new_x - last_coll_x)**2 + (new_y - last_coll_y)**2)**0.5
+        # 将距离映射到 [90, 300] 度
+        turn_angle = map_and_constrain(dist, MAX_DIST, 90, 300)
+        # 随机决定向左或向右转
+        if random.choice([True, False]):
+            #右转
+            angle = (angle + turn_angle) % 360
+        else:
+            #左转
+            angle = (angle - turn_angle) % 360
+        # 更新上次碰撞位置为这次的位置
+        last_coll_x, last_coll_y = new_x, new_y
+    # 更新 Turtle 位置
+    bot.goto(new_x, new_y)
+    # 记录轨迹
+    xs.append(new_x)
+    ys.append(new_y)
+    x, y = new_x, new_y
+# 结束 Turtle
+turtle.done()
+# Matplotlib
+plt.figure(figsize=(6,6))
+plt.plot(xs, ys, linewidth=1)
+plt.xlim(-BOUNDARY, BOUNDARY)
+plt.ylim(-BOUNDARY, BOUNDARY)
+plt.title(f'Robot trajectory with {collision_count} wall collisions RANDOM')
+plt.xlabel('X position')
+plt.ylabel('Y position')
+plt.grid(True)
+plt.gca().set_aspect('equal', 'box')
+plt.show()
